@@ -1,0 +1,15 @@
+{
+  "name": "audit-excel-to-json",
+  "version": "1.0.0",
+  "description": "",
+  "main": "audit_convert.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "SIP",
+  "license": "MIT",
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}

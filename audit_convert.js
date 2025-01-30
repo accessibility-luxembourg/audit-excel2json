@@ -1,14 +1,17 @@
 // ce script écrit en nodeJS permet de convertir un audit d'accessibilité (grille Excel)en fichier au format JSON
 // fichiers requis :
+// allNames.json (notre inventaire de sites et apps)
 // common.js (bibliothèque qui comprend des fonctions, variables et tableaux spécifiques au projet AccessLux)
 // éléments du dossier criteria (les référentiels)
+// audit_step1_convert.sh pour un traitement en lot
 //
 // important : ajouter une ligne "Plateforme :" pour préciser, dans les audits RAAM, s'il s'agit d'un audit iOS ou Android
 
 // chargement des bibliothèques requises par le projet : XLSX, fs et common.js.
 import * as XLSX from 'xlsx/xlsx.mjs'
 import * as fs from 'fs'
-import * as lib from './common.js'
+import * as lib from './lib/common.js'
+
 
 XLSX.set_fs(fs)
 
@@ -16,7 +19,7 @@ XLSX.set_fs(fs)
 const workbook = XLSX.readFile(process.argv[2])
 
 // option 2 : définir ici le nom de fichier
-// const workbook = XLSX.readFile('./data/complet/2021/20201112-ADEM-releve-NCv2.xlsx')
+// const workbook = XLSX.readFile('./file_to_read.xlsx')
 
 // sélection de l'onglet Echantillon ou Échantillon (variantes selon les grilles)
 let sample = workbook.Sheets.Echantillon
@@ -141,7 +144,7 @@ const audit = {}
 // informations générales
 const auditInfos = []
 
-const fieldsToRetrieve = ['Type', 'Date', 'Auditeur', 'Auditrice', 'Contexte', 'Site', 'Plateforme', 'Application', 'Entreprise']
+const fieldsToRetrieve = ['Type', 'Date', 'Entreprise', 'Contexte', 'Site', 'Plateforme', 'Application', 'Référentiel', 'Version référentiel']
 
 // recherche des informations générales dans les premières lignes du premier onglet de la grille
 for (let l = 1; l < 20; l++) {
@@ -172,11 +175,14 @@ if (Object.hasOwn(auditInfos, 'Date')) {
 }
 
 // obtention des autres informations générales
-audit.context = auditInfos.Contexte
-if (audit.context === '' || audit.context === undefined) { audit.context = 'Non renseigné' }
-audit.auditor = auditInfos.Auditeur
-if (audit.auditor === '' || audit.auditor === undefined) { audit.auditor = auditInfos.Auditrice }
-if (audit.auditor === '' || audit.auditor === undefined) { audit.auditor = 'Non renseigné' }
+audit.auditor = 'Non renseigné'
+audit.context = 'Non renseigné'
+if (Object.hasOwn(auditInfos, 'Entreprise')) {
+  audit.auditor = auditInfos.Entreprise
+}
+if (Object.hasOwn(auditInfos, 'Contexte') && audit.context !== '') {
+  audit.context = auditInfos.Contexte
+}
 audit.audited_at = auditInfos.Date
 audit.platform = { name: auditInfos.Plateforme }
 audit.company = auditInfos.Entreprise
@@ -187,19 +193,31 @@ if (audit.inventory.name === undefined || audit.inventory.name === '') {
   audit.inventory.name = auditInfos.Application
 }
 
-// détermination du référentiel qui s'applique
-audit.audit_reference = { name: 'RGAA', version: '4.1.2' } // audits simplifiés
-if (audit.control_type.name === 'Mobile') {
-  audit.audit_reference = { name: 'RAAM', version: '1' }
-}
-if (audit.control_type.name === 'Complet') {
-  for (let l = 1; l < 10; l++) {
-    if (lib.getFieldVal(sample, 'A', l, 'v').toLowerCase().indexOf('raweb') > -1) { audit.audit_reference = { name: 'RAWeb', version: '1' } }
-    if (lib.getFieldVal(sample, 'B', l, 'w').toLowerCase().indexOf('raweb') > -1) { audit.audit_reference = { name: 'RAWeb', version: '1' } }
+// vérification que le nom est dans l'inventaire
+if (fs.existsSync('./out/inventory/allNames.json')) {
+  const allNames = JSON.parse(fs.readFileSync('./out/inventory/allNames.json'))
+  if (!allNames.includes(audit.inventory.name)) {
+    console.error('Error: name not in the inventory:', audit.inventory.name, 'file:', process.argv[2])
   }
 }
-if (audit.control_type.name === 'Simplifié' && audit.audited_at.indexOf('2024') > -1) {
-  audit.audit_reference = { name: 'RAWeb', version: '1' }
+
+// détermination du référentiel qui s'applique
+if (Object.hasOwn(auditInfos, 'Référentiel') && Object.hasOwn(auditInfos, 'Version référentiel')) {
+  audit.audit_reference = { name: auditInfos['Référentiel'], version: auditInfos['Version référentiel'] }
+} else {
+  audit.audit_reference = { name: 'RGAA', version: '4.1.2' } // audits simplifiés
+  if (audit.control_type.name === 'Mobile') {
+    audit.audit_reference = { name: 'RAAM', version: '1.1' } // 1.1 à partir de 2024
+  }
+  if (audit.control_type.name === 'Complet') {
+    for (let l = 1; l < 10; l++) {
+      if (lib.getFieldVal(sample, 'A', l, 'v').toLowerCase().indexOf('raweb') > -1) { audit.audit_reference = { name: 'RAWeb', version: '1' } }
+      if (lib.getFieldVal(sample, 'B', l, 'w').toLowerCase().indexOf('raweb') > -1) { audit.audit_reference = { name: 'RAWeb', version: '1' } }
+    }
+  }
+  if (audit.control_type.name === 'Simplifié' && audit.audited_at.indexOf('2024') > -1) {
+    audit.audit_reference = { name: 'RAWeb', version: '1' }
+  }
 }
 
 audit.assessed_level = {}

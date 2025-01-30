@@ -4,7 +4,8 @@ This script converts accessibility audits in Excel format to files in json forma
 
 # Installation
 
-Install node.js. This script has been tested on Node.js v20.6.
+Install [node.js](https://nodejs.org/). This script has been tested on Node.js v20.6.
+We use these commands via git-bash on Windows. On MacOS, they can be used in Termina.app directly.
 
 Install the required packages with the following command:
 

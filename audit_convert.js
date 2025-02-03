@@ -185,8 +185,6 @@ if (Object.hasOwn(auditInfos, 'Contexte') && audit.context !== '') {
 }
 audit.audited_at = auditInfos.Date
 audit.platform = { name: auditInfos.Plateforme }
-audit.company = auditInfos.Entreprise
-if (audit.company === '' || audit.company === undefined) { audit.company = 'Non renseigné' }
 audit.inventory = {}
 audit.inventory.name = auditInfos.Site
 if (audit.inventory.name === undefined || audit.inventory.name === '') {

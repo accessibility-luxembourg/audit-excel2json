@@ -149,7 +149,7 @@ const fieldsToRetrieve = ['Type', 'Date', 'Entreprise', 'Contexte', 'Site', 'Pla
 // recherche des informations générales dans les premières lignes du premier onglet de la grille
 for (let l = 1; l < 20; l++) {
   for (let f = 0; f < fieldsToRetrieve.length; f++) {
-    if (lib.getFieldVal(sample, 'A', l, 'v').indexOf(fieldsToRetrieve[f]) > -1) { auditInfos[fieldsToRetrieve[f]] = lib.getFieldVal(sample, 'B', l, 'w') }
+    if (lib.getFieldVal(sample, 'A', l, 'v').indexOf(fieldsToRetrieve[f]) > -1) { auditInfos[fieldsToRetrieve[f]] = lib.getFieldVal(sample, 'B', l, 'w').trim() }
   }
 }
 

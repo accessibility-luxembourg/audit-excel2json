@@ -84,34 +84,50 @@ refCriteria.Complet.RAWeb = JSON.parse(fs.readFileSync('./data/criteria/raweb1/r
 refCriteria['Simplifié'] = {}
 refCriteria['Simplifié'].RGAA = Object.keys(JSON.parse(fs.readFileSync('./data/criteria/simple1/levels.json')))
 refCriteria['Simplifié'].RAWeb = Object.keys(JSON.parse(fs.readFileSync('./data/criteria/simple1/levels.json')))
-refCriteria.Mobile = {}
-refCriteria.Mobile.RAAM = JSON.parse(fs.readFileSync('./data/criteria/raam1/raam1.json')).topics.flatMap(e => e.criteria.map(f => e.number + '.' + f.criterium.number))
+refCriteria.Mobile = {'RAAM': {}}
+refCriteria.Mobile.RAAM['1'] = JSON.parse(fs.readFileSync('./data/criteria/raam1/raam1.json')).topics.flatMap(e => e.criteria.map(f => e.number + '.' + f.criterium.number))
+refCriteria.Mobile.RAAM['1.1'] = JSON.parse(fs.readFileSync('./data/criteria/raam1.1/raam1.1.json')).topics.flatMap(e => e.criteria.map(f => e.number + '.' + f.criterium.number))
 
-// obtenir le critère indiqué dans une cellule précise
-function getCriterionNum (refPage, col, line, reference, controlType) {
-  const val = getTextValue(refPage, col, line)
-  if (refCriteria[controlType] !== undefined && refCriteria[controlType][reference] !== undefined) {
-    if (!refCriteria[controlType][reference].includes(val)) {
-      console.error('Unknown criterion number:', val, 'at page:', refPage, 'col:', col, 'line:', line, 'reference:', reference, 'control type:', controlType)
+function getFramework(controlType, reference, version) {
+  // console.error('Detected framework:', controlType, reference, version)
+  if (refCriteria[controlType] !== undefined) {
+    if (refCriteria[controlType][reference] !== undefined) {
+      if (reference === 'RAAM') {
+        if (refCriteria[controlType][reference][version] !== undefined) {
+          return refCriteria[controlType][reference][version]
+        } else {
+          console.error('Unknown Version:', version, ', for the framework:', reference)
+          process.exit(1)
+        }
+      } else {
+        return refCriteria[controlType][reference]
+      }
+    } else {
+      console.error('Unknown Framework:', reference, 'for the control type:', controlType)
+      process.exit(1)
     }
   } else {
-    console.error('Control type / Reference not found')
+    console.error('Unknown control type:', controlType)
     process.exit(1)
+  }
+}
+
+// obtenir le critère indiqué dans une cellule précise
+function getCriterionNum (refPage, col, line, framework) {
+  const val = getTextValue(refPage, col, line)
+
+  if (!framework.includes(val)) {
+    console.error('Unknown criterion number:', val, 'at page:', refPage, 'col:', col, 'line:', line)
   }
   return val
 }
 
 // vérification que l'ensemble des critères a été testé
-function checkAssessments (assessments, refPage, reference, controlType) {
-  if (refCriteria[controlType] !== undefined && refCriteria[controlType][reference] !== undefined) {
-    const criteriaInAssessment = new Set(assessments.map(e => e.criterion.number))
-    const missingCriteria = refCriteria[controlType][reference].filter(x => !criteriaInAssessment.has(x))
-    if (missingCriteria.length !== 0) {
-      console.error('Missing criteria in assessment on page:', refPage, 'reference:', reference, 'controlType:', controlType, missingCriteria)
-    }
-  } else {
-    console.error('Control type / Reference not found')
-    process.exit(1)
+function checkAssessments (assessments, refPage, framework) {
+  const criteriaInAssessment = new Set(assessments.map(e => e.criterion.number))
+  const missingCriteria = framework.filter(x => !criteriaInAssessment.has(x))
+  if (missingCriteria.length !== 0) {
+    console.error('Missing criteria in assessment on page:', refPage, missingCriteria)
   }
 }
 
@@ -205,7 +221,7 @@ if (Object.hasOwn(auditInfos, 'Référentiel') && Object.hasOwn(auditInfos, 'Ver
 } else {
   audit.audit_reference = { name: 'RGAA', version: '4.1.2' } // audits simplifiés
   if (audit.control_type.name === 'Mobile') {
-    audit.audit_reference = { name: 'RAAM', version: '1.1' } // 1.1 à partir de 2024
+    audit.audit_reference = { name: 'RAAM', version: '1' } 
   }
   if (audit.control_type.name === 'Complet') {
     for (let l = 1; l < 10; l++) {
@@ -217,6 +233,8 @@ if (Object.hasOwn(auditInfos, 'Référentiel') && Object.hasOwn(auditInfos, 'Ver
     audit.audit_reference = { name: 'RAWeb', version: '1' }
   }
 }
+
+const framework = getFramework(audit.control_type.name, audit.audit_reference.name, audit.audit_reference.version)
 
 audit.assessed_level = {}
 audit.assessed_level.name = 'AA' // valeur commune à tous les audits de conformité
@@ -251,7 +269,7 @@ do {
         case 'Complet':
           // ne pas importer les statuts AAA
           if (['A', 'AA'].includes(lib.getFieldVal(workbook.Sheets[refPage], 'C', l, 'v'))) {
-            assessment.criterion.number = getCriterionNum(refPage, 'B', l, audit.audit_reference.name, audit.control_type.name)
+            assessment.criterion.number = getCriterionNum(refPage, 'B', l, framework)
             assessment.status = {}
             if (lib.getFieldVal(workbook.Sheets[refPage], 'F', 3, 'v') === 'Récurrent') {
               assessment.exemption = getExemption(refPage, 'G', l)
@@ -272,7 +290,7 @@ do {
           if (lib.getFieldVal(workbook.Sheets[refPage], 'C', 3, 'v') === 'Critère') {
             // ne pas importer les critères AAA
             if (['A', 'AA'].includes(lib.getFieldVal(workbook.Sheets[refPage], 'D', l, 'v'))) {
-              assessment.criterion.number = getCriterionNum(refPage, 'C', l, audit.audit_reference.name, audit.control_type.name)
+              assessment.criterion.number = getCriterionNum(refPage, 'C', l, framework)
               assessment.status = {}
               assessment.exemption = getExemption(refPage, 'G', l)
               assessment.status.name = getStatusName(refPage, 'F', l, assessment.exemption)
@@ -283,7 +301,7 @@ do {
           } else { // sur certains audits RAAM, les statuts sont en colonne C
             // ne pas importer les critères AAA
             if (['A', 'AA'].includes(lib.getFieldVal(workbook.Sheets[refPage], 'C', l, 'v'))) {
-              assessment.criterion.number = getCriterionNum(refPage, 'B', l, audit.audit_reference.name, audit.control_type.name)
+              assessment.criterion.number = getCriterionNum(refPage, 'B', l, framework)
               assessment.status = {}
               assessment.exemption = getExemption(refPage, 'F', l)
               assessment.status.name = getStatusName(refPage, 'E', l, assessment.exemption)
@@ -296,7 +314,7 @@ do {
 
         case 'Simplifié':
           if (lib.getFieldVal(workbook.Sheets[refPage], 'B', l, 'v') !== '') {
-            assessment.criterion.number = getCriterionNum(refPage, 'B', l, audit.audit_reference.name, audit.control_type.name)
+            assessment.criterion.number = getCriterionNum(refPage, 'B', l, framework)
             assessment.status = {}
             assessment.exemption = getExemption(refPage, 'E', l)
             assessment.status.name = getStatusName(refPage, 'D', l, assessment.exemption)
@@ -318,7 +336,7 @@ do {
   if ((uri !== undefined && uri !== '') || (titlePage !== undefined && titlePage !== '')) {
     if (uri === undefined || uri === '') { uri = 'non-defini' }
     assessments = Object.values(assessments)
-    checkAssessments(assessments, refPage, audit.audit_reference.name, audit.control_type.name)
+    checkAssessments(assessments, refPage, framework)
     audit.pages.push({ number, uri, assessments })
   }
 
